@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs/promises';
 import path from 'path';
+import type { Vote } from '@/types/vote';
 
 const VOTES_DIR = path.join(process.cwd(), 'data', 'votes');
 
@@ -13,12 +14,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const id = uuidv4();
     
-    const voteData = {
+    const voteData: Vote = {
       metadata: {
         id,
         title: body.title,
         createdAt: new Date().toISOString(),
         maxVotesPerUser: body.maxVotesPerUser,
+        voteDuration: body.voteDuration,
         teams: body.teams.map((team: any) => ({
           id: team.id,
           name: team.name
@@ -26,6 +28,7 @@ export async function POST(request: NextRequest) {
       },
       votes: Object.fromEntries(body.teams.map((team: any) => [team.id, 0])),
       voters: {},
+      messages: []
     };
 
     await fs.mkdir(VOTES_DIR, { recursive: true });

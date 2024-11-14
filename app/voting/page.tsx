@@ -16,10 +16,11 @@ export default function VotingPage() {
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [maxVotesPerUser, setMaxVotesPerUser] = useState(1);
+  const [voteDuration, setVoteDuration] = useState(3);
   const [teams, setTeams] = useState<{ id: string; name: string; votes: number }[]>([]);
   const [newTeam, setNewTeam] = useState('');
   const [votingStarted, setVotingStarted] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(300);
+  const [timeLeft, setTimeLeft] = useState(180);
   const [qrCode, setQrCode] = useState('');
   const [votingId, setVotingId] = useState('');
 
@@ -62,6 +63,7 @@ export default function VotingPage() {
         body: JSON.stringify({
           title,
           maxVotesPerUser,
+          voteDuration,
           teams: teams.map(t => ({ id: t.id, name: t.name })),
         }),
       });
@@ -79,6 +81,7 @@ export default function VotingPage() {
       const fullVoteUrl = `${window.location.origin}${voteUrl}`;
       const qr = await QRCode.toDataURL(fullVoteUrl);
       setQrCode(qr);
+      setTimeLeft(voteDuration * 60);
       setVotingStarted(true);
       
       navigator.clipboard.writeText(fullVoteUrl).then(() => {
@@ -150,6 +153,17 @@ export default function VotingPage() {
                     min={1}
                     value={maxVotesPerUser}
                     onChange={(e) => setMaxVotesPerUser(parseInt(e.target.value))}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="voteDuration">投票时长（分钟）</Label>
+                  <Input
+                    id="voteDuration"
+                    type="number"
+                    min={1}
+                    value={voteDuration}
+                    onChange={(e) => setVoteDuration(parseInt(e.target.value))}
                   />
                 </div>
 

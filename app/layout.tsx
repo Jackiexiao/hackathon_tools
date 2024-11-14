@@ -8,7 +8,7 @@ import { Header } from '@/components/header';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Hackathon Tools',
+  title: '周周黑客松活动工具',
   description: 'Essential tools for your weekly hackathon events',
 };
 

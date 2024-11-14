@@ -24,7 +24,7 @@ export default function Home() {
     <div className="container py-10">
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold tracking-tight mb-4">
-          Weekly Hackathon Tools
+          周周黑客松活动工具
         </h1>
         <p className="text-muted-foreground text-lg">
           Essential tools to make your hackathon events more exciting and engaging

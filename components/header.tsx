@@ -9,7 +9,7 @@ export function Header() {
           <Link href="/" className="mr-6 flex items-center space-x-2">
             <Code2 className="h-6 w-6" />
             <span className="hidden font-bold sm:inline-block">
-              Hackathon Tools
+              周周黑客松
             </span>
           </Link>
           <nav className="flex items-center space-x-6 text-sm font-medium">

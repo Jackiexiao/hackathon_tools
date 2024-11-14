@@ -13,8 +13,27 @@ export default function VotePage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState('');
+  const [remainingVotes, setRemainingVotes] = useState<number | null>(null);
+  const [userIP, setUserIP] = useState<string>('');
 
   useEffect(() => {
+    // 获取用户 IP
+    const getIP = async () => {
+      try {
+        const response = await fetch('/api/ip');
+        const data = await response.json();
+        setUserIP(data.ip);
+      } catch (error) {
+        console.error('Failed to get IP:', error);
+      }
+    };
+
+    getIP();
+  }, []);
+
+  useEffect(() => {
+    if (!userIP) return;
+
     fetch(`/api/votes/${params.id}`)
       .then(async (res) => {
         if (!res.ok) {
@@ -25,6 +44,8 @@ export default function VotePage({ params }: { params: { id: string } }) {
       })
       .then(data => {
         setVote(data);
+        const userVotes = data.voters[userIP] || { votedTeams: [], voteCount: 0 };
+        setRemainingVotes(data.metadata.maxVotesPerUser - userVotes.voteCount);
         setLoading(false);
       })
       .catch((err) => {
@@ -32,7 +53,7 @@ export default function VotePage({ params }: { params: { id: string } }) {
         toast.error(err.message);
         setLoading(false);
       });
-  }, [params.id]);
+  }, [params.id, userIP]);
 
   const handleVote = async () => {
     if (!vote || selectedTeams.length === 0) return;
@@ -57,6 +78,8 @@ export default function VotePage({ params }: { params: { id: string } }) {
         throw new Error(errorData.error || '投票失败');
       }
       
+      const data = await response.json();
+      setRemainingVotes(data.remainingVotes);
       toast.success('投票成功！');
       
       // 重新加载投票数据
@@ -99,9 +122,16 @@ export default function VotePage({ params }: { params: { id: string } }) {
     <div className="container py-10">
       <Card className="max-w-2xl mx-auto p-6">
         <h1 className="text-2xl font-bold mb-4">{vote.metadata.title}</h1>
-        <p className="text-muted-foreground mb-6">
-          请选择要投票的队伍（最多可选 {vote.metadata.maxVotesPerUser} 个）
-        </p>
+        <div className="flex justify-between items-center mb-6">
+          <p className="text-muted-foreground">
+            请选择要投票的队伍（最多可选 {vote.metadata.maxVotesPerUser} 个）
+          </p>
+          {remainingVotes !== null && (
+            <p className="text-sm text-muted-foreground">
+              剩余投票次数：{remainingVotes}
+            </p>
+          )}
+        </div>
         
         <div className="space-y-4">
           {vote.metadata.teams.map(team => (
