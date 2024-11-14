@@ -28,7 +28,7 @@ export function MessageStream({ messages }: MessageStreamProps) {
                   </span>
                   {message.content && (
                     <span className="ml-2 text-foreground">
-                      "{message.content}"
+                      &ldquo;{message.content}&rdquo;
                     </span>
                   )}
                 </div>

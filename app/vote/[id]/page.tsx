@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Vote } from '@/types/vote';
+import type { Vote } from '@/types/vote';
 import { Input } from '@/components/ui/input';
 
 export default function VotePage({ params }: { params: { id: string } }) {

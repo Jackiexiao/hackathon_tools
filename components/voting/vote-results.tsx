@@ -20,6 +20,11 @@ interface VoteResultsProps {
   onClose?: () => void;
 }
 
+// 将函数移到组件外部
+function randomInRange(min: number, max: number) {
+  return Math.random() * (max - min) + min;
+}
+
 export function VoteResults({ teams, votes, show, onClose }: VoteResultsProps) {
   const [results, setResults] = useState<VoteResult[]>([]);
 
@@ -46,11 +51,7 @@ export function VoteResults({ teams, votes, show, onClose }: VoteResultsProps) {
       const animationEnd = Date.now() + duration;
       const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
 
-      function randomInRange(min: number, max: number) {
-        return Math.random() * (max - min) + min;
-      }
-
-      const interval: any = setInterval(function() {
+      const interval = setInterval(function() {
         const timeLeft = animationEnd - Date.now();
 
         if (timeLeft <= 0) {
