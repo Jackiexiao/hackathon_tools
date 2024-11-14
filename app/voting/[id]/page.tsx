@@ -17,7 +17,7 @@ export default function VotingStatsPage({ params }: { params: { id: string } }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState('');
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [showResults, setShowResults] = useState(false);
 
   useEffect(() => {
@@ -29,6 +29,9 @@ export default function VotingStatsPage({ params }: { params: { id: string } }) 
         }
         const data = await response.json();
         setVote(data);
+        
+        // 设置初始倒计时时间（分钟转换为秒）
+        setTimeLeft(data.metadata.voteDuration * 60);
         
         // 生成投票页面的二维码
         const voteUrl = `${window.location.origin}/vote/${params.id}`;
@@ -42,21 +45,14 @@ export default function VotingStatsPage({ params }: { params: { id: string } }) 
     };
 
     loadVote();
-    
-    // 定期更新投票数据
-    const updateInterval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/votes/${params.id}`);
-        const data = await response.json();
-        setVote(data);
-      } catch (error) {
-        console.error('Failed to update votes:', error);
-      }
-    }, 3000);
+  }, [params.id]);
 
-    // 倒计时
+  useEffect(() => {
+    if (timeLeft === null || timeLeft <= 0) return;
+
     const countdownInterval = setInterval(() => {
       setTimeLeft(prev => {
+        if (prev === null) return null;
         if (prev <= 1) {
           clearInterval(countdownInterval);
           setShowResults(true);
@@ -66,11 +62,8 @@ export default function VotingStatsPage({ params }: { params: { id: string } }) 
       });
     }, 1000);
 
-    return () => {
-      clearInterval(updateInterval);
-      clearInterval(countdownInterval);
-    };
-  }, [params.id]);
+    return () => clearInterval(countdownInterval);
+  }, [timeLeft]);
 
   const handleCopyVoteUrl = () => {
     const voteUrl = `${window.location.origin}/vote/${params.id}`;
@@ -147,7 +140,7 @@ export default function VotingStatsPage({ params }: { params: { id: string } }) 
           <div className="xl:col-span-2 space-y-6">
             {!vote?.metadata.ended && (
               <>
-                <VotingQR qrCode={qrCode} timeLeft={timeLeft} />
+                <VotingQR qrCode={qrCode} timeLeft={timeLeft ?? 0} />
                 <Card className="p-4 lg:p-6">
                   <div className="flex gap-2 mb-4">
                     <Input

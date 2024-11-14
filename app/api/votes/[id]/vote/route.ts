@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
 import { v4 as uuidv4 } from 'uuid';
 import type { Vote, Message, UserVoteRecord } from '@/types/vote';
 
@@ -22,7 +22,11 @@ export async function POST(
   try {
     const body = await request.json() as VoteRequestBody;
     const headersList = headers();
+    const cookieStore = cookies();
+    const userToken = cookieStore.get('voter_token')?.value || uuidv4();
     const ip = headersList.get('x-forwarded-for') || 'unknown';
+    
+    const userId = `${ip}_${userToken}`;
     
     const filePath = path.join(VOTES_DIR, `${params.id}.json`);
     const fileContent = await fs.readFile(filePath, 'utf-8');
@@ -37,23 +41,20 @@ export async function POST(
     }
 
     // 获取用户的投票记录
-    const userVotes: UserVoteRecord = data.voters[ip] || { votedTeams: [], voteCount: 0 };
+    const userVotes = data.voters[userId] || { votedTeams: [], hasVoted: false };
 
-    // 检查投票次数是否超过限制
-    if (userVotes.voteCount >= data.metadata.maxVotesPerUser) {
+    // 检查用户是否已经投过票
+    if (userVotes.hasVoted) {
       return NextResponse.json(
-        { error: '已达到最大投票次数' },
+        { error: '您已经参与过投票' },
         { status: 400 }
       );
     }
 
-    // 检查是否重复投票给同一个队伍
-    const duplicateVotes = body.teams.filter(teamId => 
-      userVotes.votedTeams.includes(teamId)
-    );
-    if (duplicateVotes.length > 0) {
+    // 检查选择的队伍数量是否符合限制
+    if (body.teams.length > data.metadata.maxVotesPerUser) {
       return NextResponse.json(
-        { error: '不能重复投票给同一个队伍' },
+        { error: `每人最多只能选择 ${data.metadata.maxVotesPerUser} 个队伍` },
         { status: 400 }
       );
     }
@@ -64,9 +65,9 @@ export async function POST(
     });
 
     // 更新用户投票记录
-    data.voters[ip] = {
-      votedTeams: [...userVotes.votedTeams, ...body.teams],
-      voteCount: userVotes.voteCount + 1
+    data.voters[userId] = {
+      votedTeams: body.teams,
+      hasVoted: true
     };
 
     // 获取队伍名称
@@ -87,10 +88,15 @@ export async function POST(
     
     await fs.writeFile(filePath, JSON.stringify(data, null, 2));
     
-    return NextResponse.json({ 
-      success: true,
-      remainingVotes: data.metadata.maxVotesPerUser - (userVotes.voteCount + 1)
+    const response = NextResponse.json({ success: true });
+    response.cookies.set('voter_token', userToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30, // 30 天
     });
+    
+    return response;
   } catch (error) {
     console.error('Vote error:', error);
     return NextResponse.json(

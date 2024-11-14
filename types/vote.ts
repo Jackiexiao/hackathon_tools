@@ -23,7 +23,7 @@ export interface VoteMetadata {
 
 export interface UserVoteRecord {
   votedTeams: string[];
-  voteCount: number;
+  hasVoted: boolean;
 }
 
 export interface Vote {

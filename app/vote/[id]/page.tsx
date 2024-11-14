@@ -124,11 +124,11 @@ export default function VotePage({ params }: { params: { id: string } }) {
         <h1 className="text-2xl font-bold mb-4">{vote.metadata.title}</h1>
         <div className="flex justify-between items-center mb-6">
           <p className="text-muted-foreground">
-            请选择要投票的队伍（最多可选 {vote.metadata.maxVotesPerUser} 个）
+            请选择要投票的队伍（最多可选 {vote.metadata.maxVotesPerUser} 个队伍）
           </p>
           {remainingVotes !== null && (
             <p className="text-sm text-muted-foreground">
-              剩余投票次数：{remainingVotes}
+              您还可以选择 {remainingVotes} 个队伍
             </p>
           )}
         </div>
