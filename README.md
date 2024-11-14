@@ -1,4 +1,4 @@
-# Lucky Vote 幸运投票
+# Hackathon Tool 黑客松活动工具
 
 A real-time voting and lucky draw system built with Next.js.  
 基于 Next.js 构建的实时投票和抽奖系统。
@@ -60,6 +60,13 @@ pnpm dev
 
 ```bash
 pnpm build
+```
+
+5. 启动生产环境
+```bash
+
+# 使用 PM2 运行
+PORT=3004 pm2 start pnpm --name "hacktool" -- start
 ```
 
 ## Contributing 贡献
