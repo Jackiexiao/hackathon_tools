@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import { headers } from 'next/headers';
+import { v4 as uuidv4 } from 'uuid';
 
 const VOTES_DIR = path.join(process.cwd(), 'data', 'votes');
 
@@ -45,13 +46,26 @@ export async function POST(
     // 记录投票者
     data.voters[ip] = [...(data.voters[ip] || []), ...body.teams];
     
+    // 添加消息
+    const message = {
+      id: uuidv4(),
+      type: 'vote',
+      content: body.comment || '',
+      timestamp: new Date().toISOString(),
+      teamNames: body.teams.map(teamId => 
+        data.metadata.teams.find(t => t.id === teamId)?.name
+      ).filter(Boolean)
+    };
+
+    data.messages = [...(data.messages || []), message];
+    
     await fs.writeFile(filePath, JSON.stringify(data, null, 2));
     
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Vote error:', error);
     return NextResponse.json(
-      { error: '投票处理失败' },
+      { error: '投票失败' },
       { status: 500 }
     );
   }

@@ -9,6 +9,8 @@ import { VotingQR } from '@/components/voting/voting-qr';
 import { TeamList } from '@/components/voting/team-list';
 import QRCode from 'qrcode';
 import { Input } from '@/components/ui/input';
+import { VoteResults } from '@/components/voting/vote-results';
+import { MessageStream } from '@/components/voting/message-stream';
 
 export default function VotingStatsPage({ params }: { params: { id: string } }) {
   const [vote, setVote] = useState<Vote | null>(null);
@@ -16,6 +18,7 @@ export default function VotingStatsPage({ params }: { params: { id: string } }) 
   const [error, setError] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState('');
   const [timeLeft, setTimeLeft] = useState(60);
+  const [showResults, setShowResults] = useState(false);
 
   useEffect(() => {
     const loadVote = async () => {
@@ -56,6 +59,7 @@ export default function VotingStatsPage({ params }: { params: { id: string } }) 
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(countdownInterval);
+          setShowResults(true);
           return 0;
         }
         return prev - 1;
@@ -73,6 +77,27 @@ export default function VotingStatsPage({ params }: { params: { id: string } }) 
     navigator.clipboard.writeText(voteUrl).then(() => {
       toast.success('投票链接已复制！');
     });
+  };
+
+  const handleEndVoting = async () => {
+    try {
+      const response = await fetch(`/api/votes/${params.id}/end`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('结束投票失败');
+      }
+
+      setShowResults(true);
+      toast.success('投票已结束！');
+    } catch (error) {
+      toast.error('结束投票失败，请重试');
+    }
+  };
+
+  const handleCloseResults = () => {
+    setShowResults(false);
   };
 
   if (loading) {
@@ -98,35 +123,79 @@ export default function VotingStatsPage({ params }: { params: { id: string } }) 
   const voteUrl = `${window.location.origin}/vote/${params.id}`;
 
   return (
-    <div className="container py-10">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <h1 className="text-3xl font-bold text-center mb-8">{vote.metadata.title}</h1>
-        
-        <VotingQR qrCode={qrCode} timeLeft={timeLeft} />
-        
-        <Card className="p-6">
-          <div className="flex gap-2 mb-4">
-            <Input
-              value={voteUrl}
-              readOnly
-              className="font-mono text-sm"
-            />
+    <div className="container py-6 lg:py-10">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* 头部区域 */}
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl lg:text-3xl font-bold truncate">
+            {vote?.metadata.title}
+          </h1>
+          {!vote?.metadata.ended && !showResults && (
             <Button 
-              variant="outline"
-              onClick={handleCopyVoteUrl}
+              variant="destructive"
+              onClick={handleEndVoting}
+              className="shrink-0 ml-4"
             >
-              复制链接
+              结束投票
             </Button>
+          )}
+        </div>
+
+        {/* 主要内容区域 */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* 投票信息和结果区域 */}
+          <div className="xl:col-span-2 space-y-6">
+            {!vote?.metadata.ended && (
+              <>
+                <VotingQR qrCode={qrCode} timeLeft={timeLeft} />
+                <Card className="p-4 lg:p-6">
+                  <div className="flex gap-2 mb-4">
+                    <Input
+                      value={voteUrl}
+                      readOnly
+                      className="font-mono text-sm"
+                    />
+                    <Button 
+                      variant="outline"
+                      onClick={handleCopyVoteUrl}
+                      className="shrink-0"
+                    >
+                      复制链接
+                    </Button>
+                  </div>
+                  
+                  <TeamList
+                    teams={vote?.metadata.teams.map(team => ({
+                      ...team,
+                      votes: vote?.votes[team.id] || 0,
+                    }))}
+                    showVotes={true}
+                  />
+                </Card>
+              </>
+            )}
           </div>
-          
-          <TeamList
-            teams={vote.metadata.teams.map(team => ({
-              ...team,
-              votes: vote.votes[team.id] || 0,
-            }))}
-            showVotes={true}
+
+          {/* 消息流区域 */}
+          <div className="h-full">
+            <div className="sticky top-6">
+              <h2 className="text-lg font-semibold mb-3">实时动态</h2>
+              <MessageStream 
+                messages={vote?.messages || []}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 结果弹窗 */}
+        {(showResults || vote?.metadata.ended) && (
+          <VoteResults 
+            teams={vote?.metadata.teams || []}
+            votes={vote?.votes || {}}
+            show={true}
+            onClose={handleCloseResults}
           />
-        </Card>
+        )}
       </div>
     </div>
   );

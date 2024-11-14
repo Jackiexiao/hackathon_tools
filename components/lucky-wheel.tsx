@@ -2,6 +2,35 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
+import confetti from 'canvas-confetti';
+
+interface PrizeBoxProps {
+  prize: string;
+  isActive: boolean;
+  isWinner: boolean;
+}
+
+const PrizeBox = ({ prize, isActive, isWinner }: PrizeBoxProps) => (
+  <motion.div
+    className={`
+      p-4 rounded-lg text-center min-w-[120px] font-bold
+      ${isActive ? 'bg-primary text-white' : 'bg-muted'}
+      ${isWinner ? 'ring-2 ring-primary ring-offset-2' : ''}
+    `}
+    animate={{
+      scale: isActive ? 1.1 : 1,
+      y: isActive ? -5 : 0,
+    }}
+    transition={{
+      type: "spring",
+      stiffness: 300,
+      damping: 20
+    }}
+  >
+    {prize}
+  </motion.div>
+);
 
 export function LuckyWheel({
   prizes,
@@ -10,124 +39,103 @@ export function LuckyWheel({
   prizes: string[];
   spinning: boolean;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [rotation, setRotation] = useState(0);
-  const [speed, setSpeed] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [winner, setWinner] = useState<string | null>(null);
+  const [speed, setSpeed] = useState(100); // 数字越小速度越快
+  const spinningRef = useRef(spinning);
+  const speedRef = useRef(speed);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    spinningRef.current = spinning;
+    if (spinning) {
+      setSpeed(100);
+      setWinner(null);
+    }
+  }, [spinning]);
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  useEffect(() => {
+    speedRef.current = speed;
+  }, [speed]);
 
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const radius = Math.min(centerX, centerY) - 20;
-
-    const drawWheel = (currentRotation: number) => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius + 10, 0, 2 * Math.PI);
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      
-      prizes.forEach((prize, index) => {
-        const angle = (2 * Math.PI) / prizes.length;
-        const startAngle = currentRotation + index * angle;
-        const endAngle = currentRotation + (index + 1) * angle;
-
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-        ctx.closePath();
-
-        ctx.fillStyle = index % 2 === 0 ? '#f3f4f6' : '#e5e7eb';
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.rotate(startAngle + angle / 2);
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#374151';
-        ctx.font = 'bold 16px sans-serif';
-        
-        ctx.rotate(Math.PI / 2);
-        ctx.fillText(prize, radius - 30, 0);
-        ctx.restore();
-      });
-
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, 30, 0, 2 * Math.PI);
-      ctx.fillStyle = '#4f46e5';
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.moveTo(centerX + 40, centerY);
-      ctx.lineTo(centerX - 10, centerY - 15);
-      ctx.lineTo(centerX - 10, centerY + 15);
-      ctx.closePath();
-      ctx.fillStyle = '#ef4444';
-      ctx.fill();
-    };
-
-    let animationFrameId: number;
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
 
     const animate = () => {
-      if (spinning) {
-        setSpeed(prev => Math.min(prev + 0.2, 0.3));
-      } else if (speed > 0) {
-        setSpeed(prev => {
-          const newSpeed = prev - 0.005;
-          if (newSpeed <= 0) {
-            const normalizedRotation = ((rotation % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-            const segmentAngle = (2 * Math.PI) / prizes.length;
-            const winningIndex = Math.floor(prizes.length - (normalizedRotation / segmentAngle));
-            const actualIndex = winningIndex % prizes.length;
-            const prize = prizes[actualIndex];
-            
-            if (prize && prize !== winner) {
-              setWinner(prize);
-              toast.success(`🎉 恭喜抽中了 ${prize}！`, {
-                duration: 3000,
-              });
-            }
-          }
-          return Math.max(newSpeed, 0);
+      if (spinningRef.current || speedRef.current < 400) {
+        setActiveIndex(prev => (prev + 1) % prizes.length);
+        
+        if (!spinningRef.current) {
+          setSpeed(prev => prev + 10);
+        }
+        
+        timeoutId = setTimeout(animate, speedRef.current);
+      } else {
+        // 停止时
+        const winningPrize = prizes[activeIndex];
+        setWinner(winningPrize);
+        
+        // 播放烟花效果
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+
+        toast.success(`🎉 恭喜抽中了 ${winningPrize}！`, {
+          duration: 3000,
         });
       }
-
-      setRotation(prev => prev + speed);
-      drawWheel(rotation);
-
-      if (speed > 0) {
-        animationFrameId = requestAnimationFrame(animate);
-      }
     };
 
-    drawWheel(rotation);
-    if (spinning || speed > 0) {
-      animate();
-    }
+    timeoutId = setTimeout(animate, speed);
 
-    return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-    };
-  }, [prizes, spinning, rotation, speed, winner]);
+    return () => clearTimeout(timeoutId);
+  }, [activeIndex, prizes, speed]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={400}
-      height={400}
-      className="w-full max-w-[400px] mx-auto"
-    />
+    <div className="max-w-4xl mx-auto p-8">
+      <div className="grid grid-cols-4 gap-4">
+        {prizes.slice(0, 3).map((prize, index) => (
+          <PrizeBox
+            key={prize}
+            prize={prize}
+            isActive={activeIndex === index}
+            isWinner={winner === prize}
+          />
+        ))}
+        <PrizeBox
+          prize={prizes[prizes.length - 1]}
+          isActive={activeIndex === prizes.length - 1}
+          isWinner={winner === prizes[prizes.length - 1]}
+        />
+        <div className="col-span-2 row-span-2 flex items-center justify-center">
+          <motion.button
+            className={`
+              px-8 py-4 rounded-full text-xl font-bold
+              ${spinning ? 'bg-red-500' : 'bg-primary'}
+              text-white shadow-lg
+            `}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => !spinning && setWinner(null)}
+          >
+            {spinning ? '抽奖中...' : '开始抽奖'}
+          </motion.button>
+        </div>
+        <PrizeBox
+          prize={prizes[prizes.length - 2]}
+          isActive={activeIndex === prizes.length - 2}
+          isWinner={winner === prizes[prizes.length - 2]}
+        />
+        {prizes.slice(3, 6).map((prize, index) => (
+          <PrizeBox
+            key={prize}
+            prize={prize}
+            isActive={activeIndex === index + 3}
+            isWinner={winner === prize}
+          />
+        ))}
+      </div>
+    </div>
   );
 }

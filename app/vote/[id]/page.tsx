@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Vote } from '@/types/vote';
+import { Input } from '@/components/ui/input';
 
 export default function VotePage({ params }: { params: { id: string } }) {
   const [vote, setVote] = useState<Vote | null>(null);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [comment, setComment] = useState('');
 
   useEffect(() => {
     fetch(`/api/votes/${params.id}`)
@@ -44,7 +46,10 @@ export default function VotePage({ params }: { params: { id: string } }) {
       const response = await fetch(`/api/votes/${params.id}/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teams: selectedTeams }),
+        body: JSON.stringify({ 
+          teams: selectedTeams,
+          comment: comment.trim()
+        }),
       });
 
       if (!response.ok) {
@@ -62,6 +67,7 @@ export default function VotePage({ params }: { params: { id: string } }) {
       const updatedVote = await voteResponse.json();
       setVote(updatedVote);
       setSelectedTeams([]);
+      setComment('');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '投票失败，请重试');
     }
@@ -121,13 +127,21 @@ export default function VotePage({ params }: { params: { id: string } }) {
           ))}
         </div>
 
-        <Button
-          className="w-full mt-6"
-          onClick={handleVote}
-          disabled={selectedTeams.length === 0}
-        >
-          提交投票
-        </Button>
+        <div className="mt-6 space-y-4">
+          <Input
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="说点什么..."
+            maxLength={100}
+          />
+          <Button
+            className="w-full"
+            onClick={handleVote}
+            disabled={selectedTeams.length === 0}
+          >
+            提交投票
+          </Button>
+        </div>
       </Card>
     </div>
   );
