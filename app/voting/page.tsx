@@ -4,16 +4,24 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import QRCode from 'qrcode';
 import { Progress } from '@/components/ui/progress';
+import { TeamList } from '@/components/voting/team-list';
+import { VotingQR } from '@/components/voting/voting-qr';
+import { useRouter } from 'next/navigation';
 
 export default function VotingPage() {
+  const router = useRouter();
+  const [title, setTitle] = useState('');
+  const [maxVotesPerUser, setMaxVotesPerUser] = useState(1);
   const [teams, setTeams] = useState<{ id: string; name: string; votes: number }[]>([]);
   const [newTeam, setNewTeam] = useState('');
   const [votingStarted, setVotingStarted] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(300);
   const [qrCode, setQrCode] = useState('');
+  const [votingId, setVotingId] = useState('');
 
   const handleAddTeam = () => {
     if (!newTeam.trim()) {
@@ -21,7 +29,7 @@ export default function VotingPage() {
       return;
     }
 
-    setTeams((prev) => [
+    setTeams(prev => [
       ...prev,
       { id: Date.now().toString(), name: newTeam.trim(), votes: 0 },
     ]);
@@ -30,7 +38,7 @@ export default function VotingPage() {
   };
 
   const handleRemoveTeam = (id: string) => {
-    setTeams((prev) => prev.filter((team) => team.id !== id));
+    setTeams(prev => prev.filter(team => team.id !== id));
     toast.success('队伍删除成功！');
   };
 
@@ -40,53 +48,80 @@ export default function VotingPage() {
       return;
     }
 
-    // Generate voting URL and QR code
-    const votingUrl = `${window.location.origin}/voting/${Date.now()}`;
+    if (!title.trim()) {
+      toast.error('请输入投票主题');
+      return;
+    }
+
     try {
-      const qr = await QRCode.toDataURL(votingUrl);
-      setQrCode(qr);
-    } catch (err) {
-      console.error(err);
-    }
-
-    setVotingStarted(true);
-    toast.success('投票已开始！');
-
-    // Start countdown
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setVotingStarted(false);
-          return 0;
-        }
-        return prev - 1;
+      const response = await fetch('/api/votes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          maxVotesPerUser,
+          teams: teams.map(t => ({ id: t.id, name: t.name })),
+        }),
       });
-    }, 1000);
-  };
 
-  const simulateVote = () => {
-    if (!votingStarted) return;
-    
-    setTeams((prev) => {
-      const randomIndex = Math.floor(Math.random() * prev.length);
-      return prev.map((team, index) => 
-        index === randomIndex 
-          ? { ...team, votes: team.votes + 1 }
-          : team
-      );
-    });
-  };
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create vote');
+      }
 
-  // Simulate real-time voting
-  useState(() => {
-    if (votingStarted) {
-      const interval = setInterval(simulateVote, 2000);
-      return () => clearInterval(interval);
+      const data = await response.json();
+      const votingUrl = `/voting/${data.id}`;
+      const voteUrl = `/vote/${data.id}`;
+      setVotingId(data.id);
+      
+      const fullVoteUrl = `${window.location.origin}${voteUrl}`;
+      const qr = await QRCode.toDataURL(fullVoteUrl);
+      setQrCode(qr);
+      setVotingStarted(true);
+      
+      navigator.clipboard.writeText(fullVoteUrl).then(() => {
+        toast.success('投票链接已复制到剪贴板！');
+      });
+
+      toast.success('投票已开始！');
+      router.push(votingUrl);
+
+      const interval = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setVotingStarted(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      const updateInterval = setInterval(async () => {
+        try {
+          const voteResponse = await fetch(`/api/votes/${data.id}`);
+          const voteData = await voteResponse.json();
+          if (voteData.votes) {
+            setTeams(prev => prev.map(team => ({
+              ...team,
+              votes: voteData.votes[team.id] || 0,
+            })));
+          }
+        } catch (error) {
+          console.error('Failed to update votes:', error);
+        }
+      }, 3000);
+
+      return () => {
+        clearInterval(interval);
+        clearInterval(updateInterval);
+      };
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '创建投票失败');
     }
-  });
-
-  const totalVotes = teams.reduce((sum, team) => sum + team.votes, 0);
+  };
 
   return (
     <div className="container py-10">
@@ -96,32 +131,48 @@ export default function VotingPage() {
         {!votingStarted ? (
           <div className="space-y-6">
             <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">添加参赛队伍</h2>
-              <div className="flex gap-2">
-                <Input
-                  value={newTeam}
-                  onChange={(e) => setNewTeam(e.target.value)}
-                  placeholder="输入队伍名称..."
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddTeam()}
-                />
-                <Button onClick={handleAddTeam}>添加</Button>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="title">投票主题</Label>
+                  <Input
+                    id="title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="输入投票主题..."
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="maxVotes">每人最多可投票数</Label>
+                  <Input
+                    id="maxVotes"
+                    type="number"
+                    min={1}
+                    value={maxVotesPerUser}
+                    onChange={(e) => setMaxVotesPerUser(parseInt(e.target.value))}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="newTeam">添加参赛队伍</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="newTeam"
+                      value={newTeam}
+                      onChange={(e) => setNewTeam(e.target.value)}
+                      placeholder="输入队伍名称..."
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddTeam()}
+                    />
+                    <Button onClick={handleAddTeam}>添加</Button>
+                  </div>
+                </div>
               </div>
             </Card>
 
-            <div className="grid gap-4">
-              {teams.map((team) => (
-                <Card key={team.id} className="p-4 flex justify-between items-center">
-                  <span className="font-medium">{team.name}</span>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleRemoveTeam(team.id)}
-                  >
-                    删除
-                  </Button>
-                </Card>
-              ))}
-            </div>
+            <TeamList
+              teams={teams}
+              onRemoveTeam={handleRemoveTeam}
+            />
 
             {teams.length > 0 && (
               <Button
@@ -135,39 +186,11 @@ export default function VotingPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            <Card className="p-6">
-              <div className="text-center mb-4">
-                <h2 className="text-xl font-semibold">投票进行中</h2>
-                <p className="text-muted-foreground">
-                  剩余时间: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-                </p>
-              </div>
-
-              {qrCode && (
-                <div className="flex justify-center mb-6">
-                  <img src={qrCode} alt="Voting QR Code" className="w-48 h-48" />
-                </div>
-              )}
-
-              <div className="space-y-4">
-                {teams
-                  .sort((a, b) => b.votes - a.votes)
-                  .map((team) => (
-                    <div key={team.id} className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="font-medium">{team.name}</span>
-                        <span className="text-muted-foreground">
-                          {team.votes} 票 ({totalVotes > 0 ? Math.round((team.votes / totalVotes) * 100) : 0}%)
-                        </span>
-                      </div>
-                      <Progress
-                        value={totalVotes > 0 ? (team.votes / totalVotes) * 100 : 0}
-                        className="h-2"
-                      />
-                    </div>
-                  ))}
-              </div>
-            </Card>
+            <VotingQR qrCode={qrCode} timeLeft={timeLeft} />
+            <TeamList
+              teams={teams}
+              showVotes={true}
+            />
           </div>
         )}
       </div>

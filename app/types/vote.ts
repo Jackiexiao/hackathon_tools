@@ -1,9 +1,14 @@
+export interface Team {
+  id: string;
+  name: string;
+}
+
 export interface VoteMetadata {
   id: string;
   title: string;
-  createdAt: Date;
+  createdAt: string;
   maxVotesPerUser: number;
-  teams: string[];
+  teams: Team[];
 }
 
 export interface Vote {
